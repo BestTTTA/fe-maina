@@ -216,10 +216,6 @@ export default function Map() {
                     width={64}
                     height={64}
                     className="object-cover rounded-full"
-                    onError={(e) => {
-                      console.error("Failed to load image:", imageUrl);
-                      e.target.src = DEFAULT_IMAGE;
-                    }}
                   />
                 </button>
               </OverlayView>
