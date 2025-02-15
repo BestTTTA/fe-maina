@@ -193,7 +193,7 @@ export default function Map() {
                       alt={spot.name || "Spot image"}
                       width={64}
                       height={64}
-                      className="object-cover rounded-full"
+                      className="object-cover rounded-full h-full w-full"
                     />
                   </div>
                 </button>
