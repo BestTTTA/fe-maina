@@ -83,24 +83,17 @@ export default function Map() {
 
 
   const getImageUrl = (url) => {
-    if (!url) return DEFAULT_IMAGE;
-
     try {
-      if (url.startsWith("http")) return url;
 
       const baseUrl = process.env.NEXT_PUBLIC_MINIO_BASE_URL;
-      if (!baseUrl) {
-        console.error("MINIO_BASE_URL is not configured");
-        return DEFAULT_IMAGE;
-      }
 
       return `${baseUrl}/${encodeURIComponent(url)}`;
     } catch (error) {
       console.error("Error processing image URL:", error);
-      return DEFAULT_IMAGE;
     }
   };
 
+  
   useEffect(() => {
     const fetchSpots = async () => {
       try {

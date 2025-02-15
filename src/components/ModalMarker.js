@@ -8,7 +8,8 @@ const ModalMarker = ({ isOpen, onClose }) => {
   const token = getCookie("token");
   const [userData, setUserData] = useState(null);
   const [uploadSuccess, setUploadSuccess] = useState(false)
-
+  const [submit, setSubmit] = useState(false)
+  
   useEffect(() => {
     const fetchData = async () => {
       try {
@@ -68,7 +69,6 @@ const ModalMarker = ({ isOpen, onClose }) => {
   };
 
 
-  const [submit, setSubmit] = useState(false)
   const handleSubmit = async (e) => {
     e.preventDefault();
 
