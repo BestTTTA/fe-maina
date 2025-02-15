@@ -4,7 +4,6 @@ import { IoChevronBack, IoChevronForward } from "react-icons/io5";
 import { FaMapMarkerAlt } from "react-icons/fa";
 
 const Media = ({ userData }) => {
-  console.log(userData)
   const [currentIndices, setCurrentIndices] = useState(
     Object.fromEntries(userData.map(data => [data.id, 0]))
   );

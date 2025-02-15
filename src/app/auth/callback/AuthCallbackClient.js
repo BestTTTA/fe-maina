@@ -13,7 +13,7 @@ export default function AuthCallbackClient() {
 
         const token = searchParams.get("token");
         if (token) {
-            Cookies.set("token", token, { expires: 1 / 24 });
+            Cookies.set("token", token, { expires: 1 });
             router.replace("/map");
         }
     }, [searchParams.toString(), router]);

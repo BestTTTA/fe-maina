@@ -13,8 +13,8 @@ import { IoChevronBack, IoChevronForward } from "react-icons/io5";
 import TopUser from "@/components/TopUser";
 import Media from "@/components/Media";
 
-
-
+const DEFAULT_IMAGE = "/default-marker.png";
+const BLUR_PLACEHOLDER = "/blur.avif";
 
 const mapContainerStyle = {
   width: "100%",
@@ -42,9 +42,6 @@ export default function Map() {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [stepPage, setStepPage] = useState(1);
 
-  // const nextStepPage = () => setStepPage((prev) => prev + 1);
-  // const prevStepPage = () => setStepPage((prev) => prev - 1);
-
   const handlePageChange = (pageNumber) => {
     setStepPage(pageNumber);
   };
@@ -52,59 +49,79 @@ export default function Map() {
   const renderPage = () => {
     switch (stepPage) {
       case 1:
-        return (<Media userData={spots}/>);
+        return <Media userData={spots} />;
       case 2:
-        return (<TopUser />);
+        return <TopUser />;
       default:
         return null;
-
     }
-  }
-
-
-  const images = [
-    selectedSpot?.spotImages?.[0]?.url,
-    selectedSpot?.catches?.[0]?.images?.[0]?.url,
-    selectedSpot?.catches?.[0]?.bait?.imageUrl,
-  ].filter(Boolean);
-
-
-  useEffect(() => {
-    if (!selectedSpot) return;
-    if (images.length > 1) {
-      const interval = setInterval(() => {
-        setCurrentIndex((prevIndex) => (prevIndex + 1) % images.length);
-      }, 10000);
-      return () => clearInterval(interval);
-    }
-  }, [selectedSpot]);
-
-
-
-
-  const getImageUrl = (url) => {
-    if (!url) return "/default-marker.png";
-    return url.startsWith("http") ? url : `${process.env.NEXT_PUBLIC_MINIO_BASE_URL}/${encodeURI(url)}`;
   };
 
+  // Image handling for the selected spot
+  const getCarouselImages = (spot) => {
+    if (!spot) return [];
+    return [
+      spot.spotImages?.[0]?.url,
+      spot.catches?.[0]?.images?.[0]?.url,
+      spot.catches?.[0]?.bait?.imageUrl,
+    ].filter(Boolean);
+  };
+
+  const images = selectedSpot ? getCarouselImages(selectedSpot) : [];
+
+  // Improved image URL handling with error checking
+  const getImageUrl = (url) => {
+    if (!url) return DEFAULT_IMAGE;
+    
+    try {
+      // If it's already a full URL, return it
+      if (url.startsWith("http")) return url;
+      
+      // Check if MINIO_BASE_URL is available
+      const baseUrl = process.env.NEXT_PUBLIC_MINIO_BASE_URL;
+      if (!baseUrl) {
+        console.error("MINIO_BASE_URL is not configured");
+        return DEFAULT_IMAGE;
+      }
+
+      // Construct and return the full URL
+      return `${baseUrl}/${encodeURIComponent(url)}`;
+    } catch (error) {
+      console.error("Error processing image URL:", error);
+      return DEFAULT_IMAGE;
+    }
+  };
+
+  // Carousel auto-rotation
+  useEffect(() => {
+    if (!selectedSpot || images.length <= 1) return;
+    
+    const interval = setInterval(() => {
+      setCurrentIndex((prevIndex) => (prevIndex + 1) % images.length);
+    }, 10000);
+    
+    return () => clearInterval(interval);
+  }, [selectedSpot, images.length]);
+
+  // Fetch spots data
   useEffect(() => {
     const fetchSpots = async () => {
       try {
         const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/marked-spot`);
+        if (!response.ok) throw new Error('Failed to fetch spots');
+        
         const data = await response.json();
-        console.log("Fetched spots:", data);
         setSpots(data);
       } catch (err) {
+        console.error("Error fetching spots:", err);
         setError("Failed to fetch spots.");
       } finally {
         setLoading(false);
       }
     };
+
     fetchSpots();
   }, [!isOpenModal]);
-
-  if (loadError) return <div>Error loading maps</div>;
-  if (!isLoaded) return <PageLoading />;
 
   const handleAddMarker = () => {
     setUp(false);
@@ -131,7 +148,10 @@ export default function Map() {
           map.setZoom(15);
           setIsLoadingMarker(false);
         },
-        () => setIsLoadingMarker(false)
+        () => {
+          setIsLoadingMarker(false);
+          console.error("Error getting current location");
+        }
       );
     }
   };
@@ -153,13 +173,16 @@ export default function Map() {
           map.setZoom(15);
           setIsLoadingAddress(false);
         },
-        () => setIsLoadingAddress(false)
+        () => {
+          setIsLoadingAddress(false);
+          console.error("Error getting current location");
+        }
       );
     }
   };
 
-
-
+  if (loadError) return <div>Error loading maps</div>;
+  if (!isLoaded) return <PageLoading />;
 
   return (
     <div className="w-full">
@@ -174,24 +197,44 @@ export default function Map() {
           }}
         >
           {spots.map((spot) => {
-            const { lat, lng } = spot;
+            const { lat, lng, ID } = spot;
             const imageUrl = getImageUrl(spot.spotImages?.[0]?.url);
 
             return (
-              <OverlayView key={spot.ID} position={{ lat, lng }} mapPaneName={OverlayView.OVERLAY_MOUSE_TARGET}>
-                <button onClick={() => setSelectedSpot(spot)}>
-                  <div className="relative w-16 h-16 flex items-center justify-center rounded-full shadow-lg border-4 border-white hover:scale-110 transition-transform">
-                    <img src={imageUrl} alt={spot.name} className="w-full h-full object-cover rounded-full" />
-                  </div>
+              <OverlayView
+                key={ID}
+                position={{ lat, lng }}
+                mapPaneName={OverlayView.OVERLAY_MOUSE_TARGET}
+              >
+                <button
+                  onClick={() => setSelectedSpot(spot)}
+                  className="relative w-16 h-16 rounded-full shadow-lg border-4 border-white hover:scale-110 transition-transform overflow-hidden"
+                >
+                  <Image
+                    src={imageUrl}
+                    alt={spot.name || "Spot image"}
+                    width={64}
+                    height={64}
+                    className="object-cover rounded-full"
+                    onError={(e) => {
+                      console.error("Failed to load image:", imageUrl);
+                      e.target.src = DEFAULT_IMAGE;
+                    }}
+                  />
                 </button>
               </OverlayView>
             );
           })}
 
           {selectedSpot && (
-            <InfoWindow position={{ lat: selectedSpot.lat, lng: selectedSpot.lng }} onCloseClick={() => setSelectedSpot(null)}>
+            <InfoWindow
+              position={{ lat: selectedSpot.lat, lng: selectedSpot.lng }}
+              onCloseClick={() => setSelectedSpot(null)}
+            >
               <div className="w-fit p-4 flex flex-col space-y-4 max-w-xs shadow-lg rounded-lg">
-                <h3 className="text-xl font-semibold text-center font-mono">{selectedSpot.name}</h3>
+                <h3 className="text-xl font-semibold text-center font-mono">
+                  {selectedSpot.name}
+                </h3>
                 {selectedSpot.spotImages && selectedSpot.spotImages.length > 0 && (
                   <>
                     <div className="flex items-center gap-2">
@@ -202,36 +245,40 @@ export default function Map() {
                         width={30}
                         height={30}
                         placeholder="blur"
-                        blurDataURL="/blur.avif"
+                        blurDataURL={BLUR_PLACEHOLDER}
                       />
                       <p className="font-bold">{selectedSpot.user.email}</p>
                     </div>
-                    {/* Image Carousel */}
+
                     <div className="relative w-full flex justify-center border border-gray-300 rounded-lg overflow-hidden">
-                      {selectedSpot.spotImages && (
+                      {images.length > 0 && (
                         <Image
-                          src={getImageUrl(
-                            [
-                              selectedSpot.spotImages?.[0]?.url,
-                              selectedSpot.catches?.[0]?.images?.[0]?.url,
-                              selectedSpot.catches?.[0]?.bait?.imageUrl,
-                            ].filter(Boolean)[currentIndex]
-                          )}
+                          src={getImageUrl(images[currentIndex])}
                           alt={`Carousel image ${currentIndex + 1}`}
                           className="w-full h-auto rounded"
                           width={800}
                           height={600}
                           placeholder="blur"
-                          blurDataURL="/blur.avif"
+                          blurDataURL={BLUR_PLACEHOLDER}
                         />
                       )}
 
                       {images.length > 1 && (
                         <>
-                          <button onClick={() => setCurrentIndex((prevIndex) => (prevIndex === 0 ? images.length - 1 : prevIndex - 1))} className="absolute left-1 top-1/2 transform-translate-y-1/2 bg-white p rounded-full shadow-md hover:bg-gray-200">
+                          <button
+                            onClick={() => setCurrentIndex((prevIndex) =>
+                              prevIndex === 0 ? images.length - 1 : prevIndex - 1
+                            )}
+                            className="absolute left-1 top-1/2 transform -translate-y-1/2 bg-white p-1 rounded-full shadow-md hover:bg-gray-200"
+                          >
                             <IoChevronBack size={24} />
                           </button>
-                          <button onClick={() => setCurrentIndex((prevIndex) => (prevIndex + 1) % images.length)} className="absolute right-1 top-1/2 transform-translate-y-1/2 bg-white p rounded-full shadow-md hover:bg-gray-200">
+                          <button
+                            onClick={() => setCurrentIndex((prevIndex) =>
+                              (prevIndex + 1) % images.length
+                            )}
+                            className="absolute right-1 top-1/2 transform -translate-y-1/2 bg-white p-1 rounded-full shadow-md hover:bg-gray-200"
+                          >
                             <IoChevronForward size={24} />
                           </button>
                         </>
@@ -247,41 +294,76 @@ export default function Map() {
       )}
 
       <ModalMarker isOpen={isOpenModal} onClose={() => setIsOpenModal(false)} />
-      <div className={`w-full flex flex-col gap-4 transition-all duration-300 ease-in-out ${up ? "h-[95%]" : "h-[12%]"} bg-white fixed bottom-0 z-10 rounded-t-[40px] p-4`}>
+      
+      <div
+        className={`w-full flex flex-col gap-4 transition-all duration-300 ease-in-out ${
+          up ? "h-[95%]" : "h-[12%]"
+        } bg-white fixed bottom-0 z-10 rounded-t-[40px] p-4`}
+      >
         <div className="w-full flex justify-center relative">
           {up ? (
-            <button onClick={() => setUp(false)} className="absolute top-0 right-0 flex justify-center items-center">
-              <IoCloseSharp size={40} color="gray" className="mr-2 mt-2 bg-gray-100 rounded-full" />
+            <button
+              onClick={() => setUp(false)}
+              className="absolute top-0 right-0 flex justify-center items-center"
+            >
+              <IoCloseSharp
+                size={40}
+                color="gray"
+                className="mr-2 mt-2 bg-gray-100 rounded-full"
+              />
             </button>
           ) : (
-            <FaAngleDoubleUp size={15} color="gray" onClick={() => setUp(true)} className="w-full" />
+            <FaAngleDoubleUp
+              size={15}
+              color="gray"
+              onClick={() => setUp(true)}
+              className="w-full"
+            />
           )}
         </div>
+
         <div className={`flex w-full gap-2 justify-center ${up ? "mt-10" : ""}`}>
-          <button onClick={handleAddMarker} className="w-full border-blue-400 border bg-white justify-center rounded-lg p-2 flex items-center gap-2 text-lg font-bold text-blue-400" disabled={isLoadingMarker}>
-            {isLoadingMarker ? <ImSpinner2 className="animate-spin text-blue-400" size={20} /> : <MdPinDrop size={25} className="text-blue-400" />}
+          <button
+            onClick={handleAddMarker}
+            className="w-full border-blue-400 border bg-white justify-center rounded-lg p-2 flex items-center gap-2 text-lg font-bold text-blue-400"
+            disabled={isLoadingMarker}
+          >
+            {isLoadingMarker ? (
+              <ImSpinner2 className="animate-spin text-blue-400" size={20} />
+            ) : (
+              <MdPinDrop size={25} className="text-blue-400" />
+            )}
             ตำแหน่งปัจจุบัน
           </button>
 
-          <button onClick={markerAddress} className="w-full bg-blue-400 rounded-lg p-2 flex items-center justify-center gap-2 text-lg font-bold text-white" disabled={isLoadingAddress}>
-            {isLoadingAddress ? <ImSpinner2 className="animate-spin text-white" size={20} /> : <GiImpactPoint size={20} />}
+          <button
+            onClick={markerAddress}
+            className="w-full bg-blue-400 rounded-lg p-2 flex items-center justify-center gap-2 text-lg font-bold text-white"
+            disabled={isLoadingAddress}
+          >
+            {isLoadingAddress ? (
+              <ImSpinner2 className="animate-spin text-white" size={20} />
+            ) : (
+              <GiImpactPoint size={20} />
+            )}
             ปักหมาย
           </button>
         </div>
 
-
         <div className="w-full flex flex-col h-full">
           <div className="w-full flex">
             <button
-              className={`p-2 flex w-full border-r justify-center ${stepPage === 1 ? 'border-b-4 text-black' : ''
-                }`}
+              className={`p-2 flex w-full border-r justify-center ${
+                stepPage === 1 ? "border-b-4 text-black" : ""
+              }`}
               onClick={() => handlePageChange(1)}
             >
               ทั่วไป
             </button>
             <button
-              className={`p-2 flex w-full justify-center ${stepPage === 2 ? 'border-b-4 text-black' : ''
-                }`}
+              className={`p-2 flex w-full justify-center ${
+                stepPage === 2 ? "border-b-4 text-black" : ""
+              }`}
               onClick={() => handlePageChange(2)}
             >
               ลำดับ
