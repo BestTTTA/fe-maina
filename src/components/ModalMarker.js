@@ -67,10 +67,13 @@ const ModalMarker = ({ isOpen, onClose }) => {
     }));
   };
 
+
+  const [submit, setSubmit] = useState(false)
   const handleSubmit = async (e) => {
     e.preventDefault();
 
     try {
+      setSubmit(true)
       const formDataToSend = new FormData();
 
       const currentLocation = await new Promise((resolve, reject) => {
@@ -137,7 +140,9 @@ const ModalMarker = ({ isOpen, onClose }) => {
       setUploadSuccess(true)
     } catch (error) {
       console.error("Error creating spot:", error);
-    } 
+    } finally {
+      setSubmit(false)
+    }
   };
 
   const nextStep = () => setStep((prev) => prev + 1);
@@ -418,7 +423,7 @@ const ModalMarker = ({ isOpen, onClose }) => {
                 type="submit"
                 className="bg-green-500 text-white px-4 py-2 rounded-lg hover:bg-green-600 transition ml-auto"
               >
-                บันทึก
+               {submit ? "บันทึก..." : "บันทึก"} 
               </button>
             )}
           </div>
