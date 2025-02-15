@@ -93,7 +93,7 @@ export default function Map() {
     }
   };
 
-  
+
   useEffect(() => {
     const fetchSpots = async () => {
       try {
@@ -209,7 +209,7 @@ export default function Map() {
                   <>
                     <div className="flex items-center gap-2">
                       <Image
-                        src={getImageUrl(selectedSpot.user.avatar)}
+                        src={(selectedSpot.user.avatar)}
                         alt={selectedSpot.user.email}
                         className="rounded-full border"
                         width={30}
